@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # IPFS Node
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    container_name: veritas-ipfs
+    ports:
+      - "4001:4001"  # P2P port
+      - "5001:5001"  # API port
+      - "8080:8080"  # Gateway port
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    networks:
+      - veritas-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: veritas-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: veritas
+      POSTGRES_USER: veritas
+      POSTGRES_PASSWORD: veritas123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - veritas-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: veritas-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - veritas-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend/fastapi
+      dockerfile: Dockerfile
+    container_name: veritas-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://veritas:veritas123@postgres:5432/veritas
+      - REDIS_URL=redis://redis:6379
+      - IPFS_API_URL=http://ipfs:5001
+      - CHAINLINK_API_URL=http://localhost:6688
+    depends_on:
+      - postgres
+      - redis
+      - ipfs
+    volumes:
+      - ./backend/fastapi:/app
+    networks:
+      - veritas-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend/nextjs
+      dockerfile: Dockerfile
+    container_name: veritas-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_IPFS_GATEWAY=http://localhost:8080
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/nextjs:/app
+      - /app/node_modules
+    networks:
+      - veritas-network
+    command: npm run dev
+
+  # Soroban RPC (Stellar Quickstart)
+  stellar:
+    image: stellar/quickstart:latest
+    container_name: veritas-stellar
+    ports:
+      - "8000:8000"  # Soroban RPC
+      - "8001:8001"  # Friendbot
+      - "8002:8002"  # Horizon
+    environment:
+      - NETWORK=testnet
+    networks:
+      - veritas-network
+
+volumes:
+  ipfs_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  veritas-network:
+    driver: bridge
