@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Stellar / Soroban
     stellar_network: str = "testnet"
     soroban_rpc_url: str = "https://soroban-testnet.stellar.org"
-    contract_id: str = ""
+    contract_id: str = "CCER22QT2GQJAPWQKBBGZ7CF2S74OGK2POAFOP5VAW6546ODEJLVRHTY"
 
     # AI / ML
     model_path: str = "./models/verifier"

@@ -9,6 +9,8 @@ import logging
 from typing import Optional
 from dataclasses import dataclass
 
+from app.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,12 +36,13 @@ class StellarService:
         self,
         rpc_url: str = "https://soroban-testnet.stellar.org",
         network: str = "testnet",
-        contract_id: str = "",
+        contract_id: Optional[str] = None,
     ):
-        self.rpc_url = rpc_url
-        self.network = network
-        self.contract_id = contract_id
-        logger.info(f"Stellar service initialized for {network}")
+        settings = get_settings()
+        self.rpc_url = rpc_url or settings.soroban_rpc_url
+        self.network = network or settings.stellar_network
+        self.contract_id = contract_id or settings.contract_id
+        logger.info(f"Stellar service initialized for {self.network}, contract {self.contract_id[:12]}...")
 
     async def submit_to_blockchain(
         self,
