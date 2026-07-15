@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 
-from app.config import get_settings
+from app.config import get_settings, validate_settings_on_startup
 from app.database import init_db, close_db, engine
 from app.routes.verification import router as verification_router
 from app.routes.audit import router as audit_router
@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown events."""
     settings = get_settings()
     print(f"Starting {settings.app_name} v{settings.app_version}")
+    validate_settings_on_startup(settings)
 
     # Initialize database
     try:
@@ -22,7 +23,6 @@ async def lifespan(app: FastAPI):
         print("Database initialized")
     except Exception as e:
         print(f"Warning: Database initialization failed: {e}")
-
     yield
 
     # Cleanup

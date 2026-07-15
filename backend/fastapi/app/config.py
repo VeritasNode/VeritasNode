@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from urllib.parse import urlparse
+
+DEFAULT_SECRET = "change-me-in-production-use-a-real-secret"
 
 
 class Settings(BaseSettings):
@@ -13,7 +16,6 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://veritas:veritas123@localhost:5432/veritas"
-
     # Redis
     redis_url: str = "redis://localhost:6379"
 
@@ -31,7 +33,7 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.85
 
     # Security
-    secret_key: str = "change-me-in-production-use-a-real-secret"
+    secret_key: str = DEFAULT_SECRET
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
@@ -46,3 +48,33 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_settings_on_startup(settings: Settings) -> None:
+    """Warn / fail clearly when critical env is unsafe for non-dev."""
+    env = (settings.environment or "development").lower()
+    # Database URL shape
+    try:
+        parsed = urlparse(settings.database_url)
+        if not parsed.scheme or not parsed.path:
+            raise ValueError("DATABASE_URL missing scheme or path")
+        if "postgresql" not in parsed.scheme and "sqlite" not in parsed.scheme:
+            print(
+                f"Warning: DATABASE_URL scheme looks unusual: {parsed.scheme!r}"
+            )
+    except Exception as e:
+        raise RuntimeError(f"Invalid DATABASE_URL: {e}") from e
+
+    if env not in ("development", "dev", "test", "local"):
+        if settings.secret_key == DEFAULT_SECRET or settings.secret_key.startswith(
+            "change-me"
+        ):
+            raise RuntimeError(
+                "SECRET_KEY must be set to a non-default value when "
+                f"ENVIRONMENT={settings.environment!r}"
+            )
+    elif settings.secret_key == DEFAULT_SECRET:
+        print(
+            "Warning: SECRET_KEY is the default placeholder — "
+            "set a real secret before production."
+        )
